@@ -1,6 +1,8 @@
 # Reporte de Análisis de Seguridad Titvo
 
-**Fecha de Análisis**: {{scan_date}}
+**Fecha de Análisis**: {{scan_date}}  
+**Repositorio**: {{repo_owner}}/{{repo_name}}  
+**Commit**: [`{{commit_hash}}`]({{commit_url}})
 
 ## Resumen
 

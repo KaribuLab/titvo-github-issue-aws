@@ -21,12 +21,15 @@ export class GithubIssueService {
     if (!githubAccessToken) {
       throw new Error('Github access token is not set');
     }
-    this.logger.debug(`Github access token retrieved: ${githubAccessToken}`);
+    this.logger.debug('Github access token retrieved');
     const renderedTemplate = Mustache.render(this.githubIssueTemplate, this.prepareTemplateData(input.data));
     const octokit = new Octokit({
       auth: githubAccessToken,
     });
     const issueTitle = `Issue encontrado en commit ${input.data.commitHash}`
+    
+    this.logger.debug(`Creating issue with params: ${JSON.stringify({ owner: input.data.repoOwner, repo: input.data.repoName, title: issueTitle, assignees: [input.data.asignee], labels: ['bug'] })}`);
+    
     const createIssueResponse = await octokit.request(`POST /repos/{owner}/{repo}/issues`, {
       owner: input.data.repoOwner,
       repo: input.data.repoName,
@@ -42,7 +45,14 @@ export class GithubIssueService {
         'X-GitHub-Api-Version': '2022-11-28'
       }
     });
-    this.logger.debug(`Create issue response: ${createIssueResponse}`);
+    
+    this.logger.debug(`Create issue response: ${JSON.stringify({
+      status: createIssueResponse.status,
+      issueNumber: createIssueResponse.data.number,
+      issueUrl: createIssueResponse.data.html_url,
+      assignees: createIssueResponse.data.assignees,
+      labels: createIssueResponse.data.labels
+    })}`);
     if (createIssueResponse.status !== 201) {
       throw new Error(`Error creating issue ${createIssueResponse.status} ${createIssueResponse.data.body as string}`);
     }
@@ -102,6 +112,10 @@ export class GithubIssueService {
         hour: '2-digit',
         minute: '2-digit'
       }),
+      commit_hash: data.commitHash,
+      commit_url: `https://github.com/${data.repoOwner}/${data.repoName}/commit/${data.commitHash}`,
+      repo_owner: data.repoOwner,
+      repo_name: data.repoName,
       total_issues: annotations.length,
       critical_issues: severityCounts['CRITICAL'] || 0,
       high_issues: severityCounts['HIGH'] || 0,
