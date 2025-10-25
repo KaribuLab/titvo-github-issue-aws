@@ -1,4 +1,4 @@
-const { SwcJsMinimizerRspackPlugin, IgnorePlugin } = require('@rspack/core')
+const { SwcJsMinimizerRspackPlugin, IgnorePlugin, CopyRspackPlugin } = require('@rspack/core')
 const path = require('path')
 const tsconfig = require('./tsconfig.json')
 
@@ -37,6 +37,14 @@ module.exports = {
   plugins: [
     new IgnorePlugin({
       resourceRegExp: /^@nestjs\/(websockets|microservices|platform-express)/
+    }),
+    new CopyRspackPlugin({
+      patterns: [
+        {
+          from: path.resolve(__dirname, 'src/templates'),
+          to: path.resolve(__dirname, 'build/src/templates')
+        }
+      ]
     })
   ],
   resolve: {

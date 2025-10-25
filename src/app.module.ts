@@ -4,6 +4,11 @@ import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino'
 import * as pino from 'pino'
 import { GithubIssueModule } from '@lambda/github-issue/github-issue.module'
+import { join } from 'path';
+import { readFileSync } from 'fs';
+
+const githubIssueTemplatePath = join(__dirname, 'templates', 'github-issue-template.md')
+const githubIssueTemplate = readFileSync(githubIssueTemplatePath, 'utf-8')
 
 @Module({
   imports: [
@@ -22,7 +27,9 @@ import { GithubIssueModule } from '@lambda/github-issue/github-issue.module'
       isGlobal: true,
       load: [configuration],
     }),
-    GithubIssueModule,
+    GithubIssueModule.forRoot({
+      useFactory: (): string => githubIssueTemplate,
+    }),
   ]
 })
 export class AppModule {}
