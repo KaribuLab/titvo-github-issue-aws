@@ -64,7 +64,7 @@ export class GithubIssueService {
       Source: 'mcp.tool.github.issue',
       DetailType: 'output',
       Detail: JSON.stringify({
-        task_id: input.taskId,
+        job_id: input.jobId,
         success: true,
         message: 'Issue created successfully',
         data: {
@@ -74,9 +74,9 @@ export class GithubIssueService {
       }),
       EventBusName: eventBusName,
     }]);
-    this.logger.debug(`EventBridge event sent for task ${input.taskId}`);
+    this.logger.debug(`EventBridge event sent for task ${input.jobId}`);
     return {
-      taskId: input.taskId,
+      jobId: input.jobId,
       success: true,
       message: 'Issue created successfully',
       data: {

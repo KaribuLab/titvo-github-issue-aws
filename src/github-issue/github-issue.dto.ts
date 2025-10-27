@@ -14,7 +14,7 @@ export class Annotation {
 }
 
 export class GithubIssueInputDto {
-  taskId: string
+  jobId: string
   data: {
     repoOwner: string
     repoName: string
@@ -25,7 +25,7 @@ export class GithubIssueInputDto {
   }
 }
 export class GithubIssueOutputDto {
-  taskId: string
+  jobId: string
   success: boolean
   message: string
   data: {

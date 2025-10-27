@@ -35,7 +35,7 @@ const service = app.get(GithubIssueService)
 
 interface GithubIssueEvent {
   detail: {
-    task_id: string
+    job_id: string
     data: {
       repo_owner: string
       repo_name: string
@@ -62,7 +62,7 @@ export const handler: Handler<SQSEvent> = async (
       const promises = records.map(async (record) => {
         logger.debug(`Procesando mensaje: ${JSON.stringify(record)}`)
         return service.process({
-          taskId: record.detail.task_id,
+          jobId: record.detail.job_id,
           data: {
             repoOwner: record.detail.data.repo_owner,
             repoName: record.detail.data.repo_name,
