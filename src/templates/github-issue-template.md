@@ -16,30 +16,30 @@
 
 {{#issues}}
 
-### {{title}}
+### {{{title}}}
 
-`{{severity_label}}`
+`{{{severity_label}}}`
 
-- **Archivo**: {{path}}
+- **Archivo**: {{{path}}}
 - **Línea**: {{line}}
 - **Código**:
 
 ```
-{{code}}
+{{{code}}}
 ```
 
 ### Descripción
 
-{{description}}
+{{{description}}}
 
 > **Recomandación**
-> {{recommendation}}
+> {{{recommendation}}}
 
 {{#summary}}
 
 ### Resumen
 
-{{summary}}
+{{{summary}}}
 
 {{/summary}}
 
