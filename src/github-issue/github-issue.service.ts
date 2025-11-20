@@ -17,73 +17,87 @@ export class GithubIssueService {
     private readonly githubIssueTemplate: string,
   ) { }
   async process(input: GithubIssueInputDto): Promise<GithubIssueOutputDto> {
-    const githubAccessToken = await this.parameterService.getDecryptedParameterValue('github_access_token');
-    if (!githubAccessToken) {
-      throw new Error('Github access token is not set');
-    }
-    this.logger.debug('Github access token retrieved');
-    const renderedTemplate = Mustache.render(this.githubIssueTemplate, this.prepareTemplateData(input.data));
-    const octokit = new Octokit({
-      auth: githubAccessToken,
-    });
-    const issueTitle = `Issue encontrado en commit ${input.data.commitHash}`
-    
-    this.logger.debug(`Creating issue with params: ${JSON.stringify({ owner: input.data.repoOwner, repo: input.data.repoName, title: issueTitle, assignees: [input.data.asignee], labels: ['bug'] })}`);
-    
-    const createIssueResponse = await octokit.request(`POST /repos/{owner}/{repo}/issues`, {
-      owner: input.data.repoOwner,
-      repo: input.data.repoName,
-      title: issueTitle,
-      body: renderedTemplate,
-      assignees: [
-        input.data.asignee
-      ],
-      labels: [
-        'bug'
-      ],
-      headers: {
-        'X-GitHub-Api-Version': '2022-11-28'
-      }
-    });
-    
-    this.logger.debug(`Create issue response: ${JSON.stringify({
-      status: createIssueResponse.status,
-      issueNumber: createIssueResponse.data.number,
-      issueUrl: createIssueResponse.data.html_url,
-      assignees: createIssueResponse.data.assignees,
-      labels: createIssueResponse.data.labels
-    })}`);
-    if (createIssueResponse.status !== 201) {
-      throw new Error(`Error creating issue ${createIssueResponse.status} ${createIssueResponse.data.body as string}`);
-    }
     const eventBusName = this.configService.get<string>('eventBusName');
     if (!eventBusName) {
       throw new Error('Event bus name is not set');
     }
-    await this.eventBridgeService.putEvents([{
-      Source: 'mcp.tool.github.issue',
-      DetailType: 'output',
-      Detail: JSON.stringify({
-        job_id: input.jobId,
-        success: true,
-        message: 'Issue created successfully',
-        data: {
-          issue_id: createIssueResponse.data.id,
-          html_url: createIssueResponse.data.html_url
-        },
-      }),
-      EventBusName: eventBusName,
-    }]);
-    this.logger.debug(`EventBridge event sent for task ${input.jobId}`);
-    return {
-      jobId: input.jobId,
-      success: true,
-      message: 'Issue created successfully',
+    const eventData = {
+      job_id: input.jobId,
       data: {
-        issueId: createIssueResponse.data.id,
-        htmlURL: createIssueResponse.data.html_url,
+        issue_id: 0,
+        html_url: '',
       },
+      success: false,
+      message: 'Not executed',
     }
+    try {
+      const githubAccessToken = await this.parameterService.getDecryptedParameterValue('github_access_token');
+      if (!githubAccessToken) {
+        throw new Error('Github access token is not set');
+      }
+      this.logger.debug('Github access token retrieved');
+      const renderedTemplate = Mustache.render(this.githubIssueTemplate, this.prepareTemplateData(input.data));
+      const octokit = new Octokit({
+        auth: githubAccessToken,
+      });
+      const issueTitle = `Issue encontrado en commit ${input.data.commitHash}`
+
+      this.logger.debug(`Creating issue with params: ${JSON.stringify({ owner: input.data.repoOwner, repo: input.data.repoName, title: issueTitle, assignees: [input.data.asignee], labels: ['bug'] })}`);
+
+      const createIssueResponse = await octokit.request(`POST /repos/{owner}/{repo}/issues`, {
+        owner: input.data.repoOwner,
+        repo: input.data.repoName,
+        title: issueTitle,
+        body: renderedTemplate,
+        assignees: [
+          input.data.asignee
+        ],
+        labels: [
+          'bug'
+        ],
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28'
+        }
+      });
+
+      this.logger.debug(`Create issue response: ${JSON.stringify({
+        status: createIssueResponse.status,
+        issueNumber: createIssueResponse.data.number,
+        issueUrl: createIssueResponse.data.html_url,
+        assignees: createIssueResponse.data.assignees,
+        labels: createIssueResponse.data.labels
+      })}`);
+      if (createIssueResponse.status !== 201) {
+        throw new Error(`Error creating issue ${createIssueResponse.status} ${createIssueResponse.data.body as string}`);
+      }
+      this.logger.debug(`EventBridge event sent for task ${input.jobId}`);
+      eventData.success = true;
+      eventData.message = 'Issue created successfully';
+      eventData.data = {
+        issue_id: createIssueResponse.data.id,
+        html_url: createIssueResponse.data.html_url,
+      };
+    } catch (error) {
+      this.logger.error(`Error creating issue: ${error}`);
+      eventData.success = false;
+      eventData.message = (error as Error).message ?? error as string;
+    } finally {
+      await this.eventBridgeService.putEvents([{
+        EventBusName: eventBusName,
+        Source: 'mcp.tool.github.issue',
+        DetailType: 'output',
+        Detail: JSON.stringify(eventData),
+      }]);
+    }
+    return {
+      jobId: eventData.job_id,
+      success: eventData.success,
+      message: eventData.message,
+      data: {
+        issueId: eventData.data.issue_id,
+        htmlURL: eventData.data.html_url,
+      },
+    };
   }
 
   private prepareTemplateData(data: GithubIssueInputDto['data']) {
