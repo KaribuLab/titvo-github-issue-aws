@@ -12,8 +12,8 @@ locals {
       name = "Production"
     }
   }
-  service_name   = "tvo-github-issue"
-  service_bucket = "${local.service_name}-${local.region}"
+  service_name   = "tvo-mcp-github-issue"
+  service_bucket = "tvo-mcp-tfstate-github-issue"
   log_retention  = 7
   parameter_path = "/tvo/security-scan"
   common_tags    = {}
