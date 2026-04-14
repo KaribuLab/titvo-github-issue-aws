@@ -1,56 +1,39 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config';
 import { GithubIssueInputDto, GithubIssueOutputDto } from '@lambda/github-issue/github-issue.dto'
 import { ParameterService } from '@lambda/parameter/parameter.service';
-import { Octokit } from 'octokit';
-import { EventBridgeService } from '@lambda/aws/eventbridge.service';
+import { Octokit } from 'octokit';  
 import Mustache from 'mustache';
 
 @Injectable()
 export class GithubIssueService {
   private readonly logger = new Logger(GithubIssueService.name)
   constructor(
-    private readonly configService: ConfigService,
     private readonly parameterService: ParameterService,
-    private readonly eventBridgeService: EventBridgeService,
     @Inject("GITHUB_ISSUE_TEMPLATE")
     private readonly githubIssueTemplate: string,
   ) { }
   async process(input: GithubIssueInputDto): Promise<GithubIssueOutputDto> {
-    const eventBusName = this.configService.get<string>('eventBusName');
-    if (!eventBusName) {
-      throw new Error('Event bus name is not set');
-    }
-    const eventData = {
-      job_id: input.jobId,
-      data: {
-        issue_id: 0,
-        html_url: '',
-      },
-      success: false,
-      message: 'Not executed',
-    }
     try {
       const githubAccessToken = await this.parameterService.getDecryptedParameterValue('github_access_token');
       if (!githubAccessToken) {
         throw new Error('Github access token is not set');
       }
       this.logger.debug('Github access token retrieved');
-      const renderedTemplate = Mustache.render(this.githubIssueTemplate, this.prepareTemplateData(input.data));
+      const renderedTemplate = Mustache.render(this.githubIssueTemplate, this.prepareTemplateData(input));
       const octokit = new Octokit({
         auth: githubAccessToken,
       });
-      const issueTitle = `Issue encontrado en commit ${input.data.commitHash}`
+      const issueTitle = `Issue encontrado en commit ${input.commitHash}`
 
-      this.logger.debug(`Creating issue with params: ${JSON.stringify({ owner: input.data.repoOwner, repo: input.data.repoName, title: issueTitle, assignees: [input.data.asignee], labels: ['bug'] })}`);
+      this.logger.debug(`Creating issue with params: ${JSON.stringify({ owner: input.repoOwner, repo: input.repoName, title: issueTitle, assignees: [input.asignee], labels: ['bug'] })}`);
 
       const createIssueResponse = await octokit.request(`POST /repos/{owner}/{repo}/issues`, {
-        owner: input.data.repoOwner,
-        repo: input.data.repoName,
+        owner: input.repoOwner,
+        repo: input.repoName,
         title: issueTitle,
         body: renderedTemplate,
         assignees: [
-          input.data.asignee
+          input.asignee
         ],
         labels: [
           'bug'
@@ -70,37 +53,16 @@ export class GithubIssueService {
       if (createIssueResponse.status !== 201) {
         throw new Error(`Error creating issue ${createIssueResponse.status} ${createIssueResponse.data.body as string}`);
       }
-      this.logger.debug(`EventBridge event sent for task ${input.jobId}`);
-      eventData.success = true;
-      eventData.message = 'Issue created successfully';
-      eventData.data = {
-        issue_id: createIssueResponse.data.id,
-        html_url: createIssueResponse.data.html_url,
+      return {
+        issueId: createIssueResponse.data.id,
+        htmlURL: createIssueResponse.data.html_url,
       };
     } catch (error) {
-      this.logger.error(`Error creating issue: ${error}`);
-      eventData.success = false;
-      eventData.message = (error as Error).message ?? error as string;
-    } finally {
-      await this.eventBridgeService.putEvents([{
-        EventBusName: eventBusName,
-        Source: 'mcp.tool.github.issue',
-        DetailType: 'output',
-        Detail: JSON.stringify(eventData),
-      }]);
-    }
-    return {
-      jobId: eventData.job_id,
-      success: eventData.success,
-      message: eventData.message,
-      data: {
-        issueId: eventData.data.issue_id,
-        htmlURL: eventData.data.html_url,
-      },
-    };
+      throw new Error(`Error creating issue: ${error}`);
+    } 
   }
 
-  private prepareTemplateData(data: GithubIssueInputDto['data']) {
+  private prepareTemplateData(data: GithubIssueInputDto) {
     const annotations = data.annotations || [];
 
     // Calcular contadores por severidad

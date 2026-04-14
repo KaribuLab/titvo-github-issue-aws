@@ -15,22 +15,14 @@ export class Annotation {
 }
 
 export class GithubIssueInputDto {
-  jobId: string
-  data: {
-    repoOwner: string
-    repoName: string
-    asignee: string
-    commitHash: string
-    status: ReportStatus
-    annotations: Annotation[]
-  }
+  repoOwner: string
+  repoName: string
+  asignee: string
+  commitHash: string
+  status: ReportStatus
+  annotations: Annotation[]
 }
 export class GithubIssueOutputDto {
-  jobId: string
-  success: boolean
-  message: string
-  data: {
-    issueId: number
-    htmlURL: string
-  }
+  issueId: number
+  htmlURL: string
 }
