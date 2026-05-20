@@ -52,16 +52,6 @@ inputs = {
       {
         "Effect" : "Allow",
         "Action" : [
-          "sqs:ChangeMessageVisibility",
-          "sqs:DeleteMessage",
-          "sqs:GetQueueAttributes",
-          "sqs:ReceiveMessage",
-        ],
-        "Resource" : dependency.parameters.outputs.parameters["${local.base_path}/infra/sqs/mcp/github-issue/input/queue_arn"]
-      },
-      {
-        "Effect" : "Allow",
-        "Action" : [
           "secretsmanager:GetSecretValue",
         ],
         "Resource" : dependency.parameters.outputs.parameters["${local.base_path}/infra/secret/manager/arn"]
@@ -82,17 +72,12 @@ inputs = {
     TITVO_AES_KEY_PATH         = dependency.parameters.outputs.parameters["${local.base_path}/infra/kms/encryption-key-name"]
     NODE_OPTIONS               = "--enable-source-maps",
   }
-  event_sources_arn = [
-    dependency.parameters.outputs.parameters["${local.base_path}/infra/sqs/mcp/github-issue/input/queue_arn"]
-  ]
   runtime       = "nodejs22.x"
   handler       = "src/entrypoint.handler"
   bucket        = local.serverless.locals.service_bucket
   file_location = "${get_parent_terragrunt_dir()}/build"
   zip_location  = "${get_parent_terragrunt_dir()}/dist"
   zip_name      = "${local.function_name}.zip"
-  batch_size    = 10
-  batch_window  = 10
   common_tags = merge(local.common_tags, {
     Name = local.function_name
   })
