@@ -6,6 +6,10 @@
 
 ## Resumen
 
+{{#has_acceptance}}
+- Active findings: {{active_issues}}
+- Accepted risks: {{accepted_issues}}
+{{/has_acceptance}}
 - **Total de Problemas**: {{total_issues}}
 - **Problemas Críticos**: {{critical_issues}}
 - **Problemas Altos**: {{high_issues}}
@@ -18,6 +22,12 @@
 
 ### {{{title}}}
 
+{{#acceptance}}
+**Accepted risk**
+- Reason: {{reason}}
+- Declared responsible party (not authenticated): {{accepted_by}}
+- Expires on: {{expires_on}}
+{{/acceptance}}
 `{{{severity_label}}}`
 
 - **Archivo**: {{{path}}}
