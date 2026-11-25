@@ -27,21 +27,32 @@ export class GithubIssueService {
 
       this.logger.debug(`Creating issue with params: ${JSON.stringify({ owner: input.repoOwner, repo: input.repoName, title: issueTitle, assignees: [input.asignee], labels: ['bug'] })}`);
 
-      const createIssueResponse = await octokit.request(`POST /repos/{owner}/{repo}/issues`, {
+      const assignee = input.asignee?.trim();
+      const basePayload = {
         owner: input.repoOwner,
         repo: input.repoName,
         title: issueTitle,
         body: renderedTemplate,
-        assignees: [
-          input.asignee
-        ],
-        labels: [
-          'bug'
-        ],
+        labels: ['bug'],
         headers: {
           'X-GitHub-Api-Version': '2022-11-28'
         }
-      });
+      };
+
+      let createIssueResponse;
+      try {
+        createIssueResponse = await octokit.request(`POST /repos/{owner}/{repo}/issues`, {
+          ...basePayload,
+          ...(assignee ? { assignees: [assignee] } : {}),
+        });
+      } catch (err: any) {
+        if (assignee && err?.status === 422) {
+          this.logger.warn(`Assignee "${assignee}" rejected by GitHub (422); retrying issue creation without assignees`);
+          createIssueResponse = await octokit.request(`POST /repos/{owner}/{repo}/issues`, basePayload);
+        } else {
+          throw err;
+        }
+      }
 
       this.logger.debug(`Create issue response: ${JSON.stringify({
         status: createIssueResponse.status,
