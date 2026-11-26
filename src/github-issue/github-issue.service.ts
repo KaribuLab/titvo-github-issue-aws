@@ -24,10 +24,10 @@ export class GithubIssueService {
         auth: githubAccessToken,
       });
       const issueTitle = `Issue encontrado en commit ${input.commitHash}`
-
-      this.logger.debug(`Creating issue with params: ${JSON.stringify({ owner: input.repoOwner, repo: input.repoName, title: issueTitle, assignees: [input.asignee], labels: ['bug'] })}`);
-
       const assignee = input.asignee?.trim();
+
+      this.logger.debug(`Creating issue with params: ${JSON.stringify({ owner: input.repoOwner, repo: input.repoName, title: issueTitle, assignees: assignee ? [assignee] : [], labels: ['bug'] })}`);
+
       const basePayload = {
         owner: input.repoOwner,
         repo: input.repoName,
@@ -46,7 +46,7 @@ export class GithubIssueService {
           ...(assignee ? { assignees: [assignee] } : {}),
         });
       } catch (err: any) {
-        if (assignee && err?.status === 422) {
+        if (assignee && this.isAssigneeValidationError(err)) {
           this.logger.warn(`Assignee "${assignee}" rejected by GitHub (422); retrying issue creation without assignees`);
           createIssueResponse = await octokit.request(`POST /repos/{owner}/{repo}/issues`, basePayload);
         } else {
@@ -113,6 +113,25 @@ export class GithubIssueService {
       low_issues: severityCounts['LOW'] || 0,
       issues
     };
+  }
+
+  private isAssigneeValidationError(err: any): boolean {
+    if (err?.status !== 422) {
+      return false;
+    }
+
+    const errors = err?.response?.data?.errors;
+    if (Array.isArray(errors) && errors.length > 0) {
+      return errors.some((entry: any) => entry?.field === 'assignees' || entry?.field === 'assignee');
+    }
+
+    const message = typeof err?.response?.data?.message === 'string'
+      ? err.response.data.message
+      : typeof err?.message === 'string'
+        ? err.message
+        : '';
+
+    return /assign/i.test(message);
   }
 
   private getSeverityLabel(severity: string): string {
