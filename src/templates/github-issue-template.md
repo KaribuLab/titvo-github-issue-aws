@@ -42,7 +42,7 @@
 
 {{{description}}}
 
-> **Recomandación**
+> **Recomendación**
 > {{{recommendation}}}
 
 {{#summary}}

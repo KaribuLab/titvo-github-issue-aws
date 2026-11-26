@@ -24,3 +24,21 @@ it('preserves rendering without acceptance', async () => {
   expect(body).not.toContain('Accepted risk')
   expect(body).not.toContain('Active findings')
 })
+
+it('falls back to creating issue without assignees when GitHub rejects assignee with 422', async () => {
+  request
+    .mockRejectedValueOnce(Object.assign(new Error('Validation Failed'), { status: 422 }))
+    .mockResolvedValueOnce({ status: 201, data: { id: 99, html_url: 'https://github.com/org/repo/issues/99' } })
+  const service = new GithubIssueService({ getDecryptedParameterValue: async () => 'token' } as any, readFileSync('src/templates/github-issue-template.md', 'utf8'))
+  const out = await service.process({
+    repoOwner: 'org',
+    repoName: 'repo',
+    commitHash: 'abc1234',
+    asignee: 'external-bot',
+    annotations: [{ title: 'SQLi', severity: 'HIGH', description: 'Desc', recommendation: 'Use params', path: 'src/db.ts', line: 10 }]
+  } as any)
+  expect(out).toEqual({ issueId: 99, htmlURL: 'https://github.com/org/repo/issues/99' })
+  expect(request.mock.calls.at(-2)![1].assignees).toEqual(['external-bot'])
+  expect(request.mock.calls.at(-1)![1].assignees).toBeUndefined()
+  expect(request.mock.calls.at(-1)![1].body).toContain('> **Recomendación**')
+})
