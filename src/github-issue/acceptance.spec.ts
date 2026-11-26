@@ -1,8 +1,12 @@
-import { it, expect, vi } from 'vitest'
+import { beforeEach, it, expect, vi } from 'vitest'
 import { readFileSync } from 'fs'
 import { GithubIssueService } from './github-issue.service'
 const { request } = vi.hoisted(() => ({ request: vi.fn() }))
 vi.mock('octokit', () => ({ Octokit: class { request = request } }))
+
+beforeEach(() => {
+  request.mockReset()
+})
 it.each([false, true])('renders accepted findings (mixed=%s)', async mixed => {
   request.mockResolvedValue({ status: 201, data: { id: 1, html_url: 'url' } })
   const service = new GithubIssueService({ getDecryptedParameterValue: async () => 'token' } as any, readFileSync('src/templates/github-issue-template.md', 'utf8'))
@@ -27,7 +31,15 @@ it('preserves rendering without acceptance', async () => {
 
 it('falls back to creating issue without assignees when GitHub rejects assignee with 422', async () => {
   request
-    .mockRejectedValueOnce(Object.assign(new Error('Validation Failed'), { status: 422 }))
+    .mockRejectedValueOnce(Object.assign(new Error('Validation Failed'), {
+      status: 422,
+      response: {
+        data: {
+          message: 'Validation Failed',
+          errors: [{ resource: 'Issue', field: 'assignees', code: 'invalid' }],
+        },
+      },
+    }))
     .mockResolvedValueOnce({ status: 201, data: { id: 99, html_url: 'https://github.com/org/repo/issues/99' } })
   const service = new GithubIssueService({ getDecryptedParameterValue: async () => 'token' } as any, readFileSync('src/templates/github-issue-template.md', 'utf8'))
   const out = await service.process({
@@ -38,7 +50,43 @@ it('falls back to creating issue without assignees when GitHub rejects assignee 
     annotations: [{ title: 'SQLi', severity: 'HIGH', description: 'Desc', recommendation: 'Use params', path: 'src/db.ts', line: 10 }]
   } as any)
   expect(out).toEqual({ issueId: 99, htmlURL: 'https://github.com/org/repo/issues/99' })
-  expect(request.mock.calls.at(-2)![1].assignees).toEqual(['external-bot'])
-  expect(request.mock.calls.at(-1)![1].assignees).toBeUndefined()
-  expect(request.mock.calls.at(-1)![1].body).toContain('> **Recomendación**')
+  expect(request).toHaveBeenCalledTimes(2)
+  expect(request.mock.calls[0][1].assignees).toEqual(['external-bot'])
+  expect(request.mock.calls[1][1].assignees).toBeUndefined()
+  expect(request.mock.calls[1][1].body).toContain('> **Recomendación**')
+})
+
+it('does not retry on unrelated 422 validation errors', async () => {
+  request.mockRejectedValueOnce(Object.assign(new Error('Validation Failed'), {
+    status: 422,
+    response: {
+      data: {
+        message: 'Validation Failed',
+        errors: [{ resource: 'Issue', field: 'title', code: 'missing_field' }],
+      },
+    },
+  }))
+  const service = new GithubIssueService({ getDecryptedParameterValue: async () => 'token' } as any, readFileSync('src/templates/github-issue-template.md', 'utf8'))
+  await expect(service.process({
+    repoOwner: 'org',
+    repoName: 'repo',
+    commitHash: 'abc1234',
+    asignee: 'octocat',
+    annotations: [{ title: 'SQLi', severity: 'HIGH', description: 'Desc', recommendation: 'Use params', path: 'src/db.ts', line: 10 }]
+  } as any)).rejects.toThrow('Error creating issue')
+  expect(request).toHaveBeenCalledTimes(1)
+})
+
+it.each(['', '   '])('omits assignees on the first request when asignee is blank (%j)', async blankAssignee => {
+  request.mockResolvedValueOnce({ status: 201, data: { id: 101, html_url: 'https://github.com/org/repo/issues/101' } })
+  const service = new GithubIssueService({ getDecryptedParameterValue: async () => 'token' } as any, readFileSync('src/templates/github-issue-template.md', 'utf8'))
+  await service.process({
+    repoOwner: 'org',
+    repoName: 'repo',
+    commitHash: 'abc1234',
+    asignee: blankAssignee,
+    annotations: [{ title: 'SQLi', severity: 'LOW', description: 'Desc', recommendation: 'Fix', path: 'src/a.ts', line: 1 }]
+  } as any)
+  expect(request).toHaveBeenCalledTimes(1)
+  expect('assignees' in request.mock.calls[0][1]).toBe(false)
 })
